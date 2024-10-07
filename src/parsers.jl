@@ -42,8 +42,8 @@ export finjudgement, judgement, context, statement, body, uwd
 # It would be nice to have a better way to do this, but basically anything that can occur in a list has two rules associated with it.
 # We use the prefix `fin` for final.
 
-@rule judgement = elname & colon & obname & r"," |> Typed
-@rule finjudgement = elname & colon & obname |> Typed
+@rule judgement = elname & (colon & obname)[:?] & r"," |> Typed
+@rule finjudgement = elname & (colon & obname)[:?] |> Typed
 
 # A context is a list of judgements between brackets. When a rule ends with `|> f`
 # it means to call `f` on the result of the parser inside the recursion.
@@ -70,7 +70,14 @@ export finjudgement, judgement, context, statement, body, uwd
 # Some of our rules construct higher level structures for the results. Those methods are defined here:
 
 ASKEMUWDs.Typed(j::Vector{Any}) = begin
-  Typed(Symbol(j[1]), Symbol(j[3]))
+  #Debug quick: 
+  println("Current arg: $j, \n Current Length: ", length(j))
+  if length(j[2]) == 0
+    Untyped(Symbol(j[1]))
+  else
+    type = j[2][1][2]
+    Typed(Symbol(j[1]), Symbol(type))
+  end
 end
 
 buildcontext(v::Vector{Any}) = begin

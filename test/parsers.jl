@@ -24,6 +24,7 @@ end
 
 @testset "Contexts" begin
   @test Parsers.context("{a:A,b:B}")[1] == [Typed(:a, :A), Typed(:b, :B)]
+  @test Parsers.context("{a,b}")[1] == [Untyped(:a), Untyped(:b)]
 end
 
 
@@ -75,4 +76,5 @@ end
 end
 
 #Potential Errors:
-# Context does not permit untyped vars: {x,y,z}
+# Context permits unTyped however, we always must designate a specific typing.
+# We explicitly have to set it to a untyped var
