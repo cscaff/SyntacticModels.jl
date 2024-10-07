@@ -1,3 +1,4 @@
+__precompile__(false)
 # ## Testing our parser
 module ParserTests
 using Test
@@ -62,4 +63,16 @@ end
     Statement(:S, [Untyped(:b), Untyped(:c)])]
   @test uwd("""{R(a,b); S(b,c);} where {a:A,b:B,c:C}""")[1] isa ASKEMUWDs.UWDExpr
 end
+
+# End-To-End Test Cases illustrating full on use of string macro
+@testset 
+  parsed = relation"""
+  {
+    R(x,y)
+    S(y,z)
+  } where {x:X,y:Y,z:Z}
+  """
 end
+
+#Potential Errors:
+# Context does not permit untyped vars: {x,y,z}

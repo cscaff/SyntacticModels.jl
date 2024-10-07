@@ -13,6 +13,9 @@ using Reexport
 
 @reexport using PEG
 
+# export macro
+export @relation_str
+
 # export the lexing rules
 export ws, eq, lparen, rparen, comma, EOL, colon, elname, obname
 
@@ -57,7 +60,7 @@ export finjudgement, judgement, context, statement, body, uwd
 # A line is statement, with some whitespace ended by a EOL character.
 # The body of our relational program is a list of lines between braces.
 
-@rule line = ws & statement & ws & EOL |> v->v[2]
+@rule line = ws & statement & r"[^\S\r\n]*" & EOL |> v->v[2]
 @rule body = r"{\s*"p & line[*]  & r"\n?}"p |> v->v[2]
 
 # The UWD is a body and then a context for it separated by the word "where".
@@ -80,4 +83,8 @@ ASKEMUWDs.Statement(v::Vector{Any}) = begin
   push!(args, Untyped(Symbol(v[4])))
   Statement(Symbol(v[1]), args)
 end
+
+# Creates a string macro to parse/construct a UWD
+macro relation_str(x::String) parse_whole(uwd, x) end
+
 end
