@@ -90,18 +90,21 @@ buildUWDExpr(v::Vector{Any}) = begin
   #Extract Outerports from context:
   outer_ports = [first(v[5]), last(v[5])]
 
-  # Perform Type Checking for Statements
-  for s in v[1]  # O(n*m) where n is # of statement vars and m is # of context judgements
+  #Build a dictionary from our list for cheaper lookups O(n) for n judgements
+  context_dict = Dict(judgement.var => judgement for judgement in v[5])
+
+  # Perform Type Checking for Statements O(m) for m statement args
+  for s in v[1]
     for i in 1:length(s.variables)
       var = s.variables[i]
-      for judgement in v[5]
-        if var.var == judgement.var 
-          # Adjust type by assigning the Typed object in-place
-          s.variables[i] = judgement  # Overwrite the Untyped var with Typed
-        end
+      if !isnothing(context_dict[var.var])
+        s.variables[i] = context_dict[var.var]  # Overwrite the Untyped var with Typed
       end
     end
   end
+
+  # Total Complexity: O(n) where m = n + constant intersections.
+  # O(m) + O(n) = O(n+ constant) + O(n) = O(n) + O(n) = O(n)
 
   #Construct Expression
   UWDExpr(outer_ports, v[1])
