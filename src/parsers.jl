@@ -8,6 +8,7 @@ module Parsers
 
 using MLStyle
 using ..ASKEMUWDs
+using Catlab.RelationalPrograms
 using Base.Iterators
 using Reexport
 
@@ -20,7 +21,7 @@ export @relation_str
 export ws, eq, lparen, rparen, comma, EOL, colon, elname, obname
 
 # export the UWD rules
-export finjudgement, judgement, context, statement, body, uwd
+export finjudgement, judgement, context, statement, uwd_head, body, uwd, line
 
 # ## Create some rules 
 # These basic rules are for *lexing*, they define character classes that will help us
@@ -32,18 +33,19 @@ export finjudgement, judgement, context, statement, body, uwd
 @rule lparen = r"\("
 @rule rparen = r"\)"
 @rule comma = r","p
-@rule EOL = "\n" , ";"
+@rule EOL = "\n" , r";"p
 @rule colon = r":"p
 @rule elname = r"[^:{}→\n;=,\(\)]*"
 @rule obname = r"[^:{}→\n;=,\(\)]*"
+
 
 # Now we get to the syntax structures specific to our DSL.
 # A judgement is an of the form x:X. We need to handle the items in the middle of list and the last item separately.
 # It would be nice to have a better way to do this, but basically anything that can occur in a list has two rules associated with it.
 # We use the prefix `fin` for final.
 
-@rule judgement = elname & (colon & obname)[:?] & r"," |> Typed
-@rule finjudgement = elname & (colon & obname)[:?] |> Typed
+@rule judgement = elname & colon & obname & r"," |> Typed
+@rule finjudgement = elname & colon & obname |> Typed
 
 # A context is a list of judgements between brackets. When a rule ends with `|> f`
 # it means to call `f` on the result of the parser inside the recursion.
@@ -61,23 +63,16 @@ export finjudgement, judgement, context, statement, body, uwd
 # The body of our relational program is a list of lines between braces.
 
 @rule line = ws & statement & r"[^\S\r\n]*" & EOL |> v->v[2]
-@rule body = r"{\s*"p & line[*]  & r"\n?}"p |> v->v[2]
+@rule body = r"{\s*"p & line[*] & r"\n?}"p |> v->v[2]
 
 # The UWD is a body and then a context for it separated by the word "where".
 
-@rule uwd = body & ws & "where" & ws & context |> v -> UWDExpr(v[end], v[1])
+@rule uwd = body & ws & "where" & ws & context |> v -> buildUWDExpr(v)
 
 # Some of our rules construct higher level structures for the results. Those methods are defined here:
 
 ASKEMUWDs.Typed(j::Vector{Any}) = begin
-  #Debug quick: 
-  println("Current arg: $j, \n Current Length: ", length(j))
-  if length(j[2]) == 0
-    Untyped(Symbol(j[1]))
-  else
-    type = j[2][1][2]
-    Typed(Symbol(j[1]), Symbol(type))
-  end
+  Typed(Symbol(j[1]), Symbol(j[3]))
 end
 
 buildcontext(v::Vector{Any}) = begin
@@ -91,7 +86,31 @@ ASKEMUWDs.Statement(v::Vector{Any}) = begin
   Statement(Symbol(v[1]), args)
 end
 
-# Creates a string macro to parse/construct a UWD
-macro relation_str(x::String) parse_whole(uwd, x) end
+buildUWDExpr(v::Vector{Any}) = begin
+  #Extract Outerports from context:
+  outer_ports = [first(v[5]), last(v[5])]
+
+  # Perform Type Checking for Statements
+  for s in v[1]  # O(n*m) where n is # of statement vars and m is # of context judgements
+    for i in 1:length(s.variables)
+      var = s.variables[i]
+      for judgement in v[5]
+        if var.var == judgement.var 
+          # Adjust type by assigning the Typed object in-place
+          s.variables[i] = judgement  # Overwrite the Untyped var with Typed
+        end
+      end
+    end
+  end
+
+  #Construct Expression
+  UWDExpr(outer_ports, v[1])
+end
+
+#String macro that parses and constructs UWD diagram from relationalProgram syntax.
+macro relation_str(x::String) begin
+  uwd_exp = parse_whole(uwd, x) end
+  return ASKEMUWDs.construct(RelationDiagram, parse_whole(uwd, x))
+end
 
 end

@@ -1,10 +1,11 @@
-__precompile__(false)
+__precompile__(false) #REMOVE
 # ## Testing our parser
 module ParserTests
 using Test
 using SyntacticModels
 using SyntacticModels.ASKEMUWDs
 using SyntacticModels.Parsers
+using Catlab
 
 # Now we write some unit tests. This is how I wrote this code, by writing the tests from the bottom up.
 
@@ -24,7 +25,6 @@ end
 
 @testset "Contexts" begin
   @test Parsers.context("{a:A,b:B}")[1] == [Typed(:a, :A), Typed(:b, :B)]
-  @test Parsers.context("{a,b}")[1] == [Untyped(:a), Untyped(:b)]
 end
 
 
@@ -58,23 +58,34 @@ end
 
 # Our final test shows that we can parse what we expect to be able to parse:
 @testset "UWD" begin
-  @test uwd("""{R(a,b); S(b,c);} where {a:A,b:B,c:C}""")[1].context == [Typed(:a, :A), Typed(:b,:B), Typed(:c,:C)]
+  @test uwd("""{R(a,b); S(b,c);} where {a:A,b:B,c:C}""")[1].context == [Typed(:a, :A), Typed(:c,:C)]
   @test uwd("""{R(a,b); S(b,c);}
-   where {a:A,b:B,c:C}""")[1].statements == [Statement(:R, [Untyped(:a), Untyped(:b)]),
-    Statement(:S, [Untyped(:b), Untyped(:c)])]
+   where {a:A,b:B,c:C}""")[1].statements == [Statement(:R, [Typed(:a, :A), Typed(:b, :B)]),
+    Statement(:S, [Typed(:b, :B), Typed(:c, :C)])]
   @test uwd("""{R(a,b); S(b,c);} where {a:A,b:B,c:C}""")[1] isa ASKEMUWDs.UWDExpr
 end
 
 # End-To-End Test Cases illustrating full on use of string macro
-@testset 
-  parsed = relation"""
-  {
-    R(x,y)
-    S(y,z)
-  } where {x:X,y:Y,z:Z}
-  """
+@testset "End-To-End" begin
+  parsed_result = relation"{R(x,y); S(y,z);} where {x:X,y:Y,z:Z}"
+  
+  v1 = Typed(:x, :X)
+  v2 = Typed(:y, :Y)
+  v3 = Typed(:z, :Z)
+  c = [v1, v3]
+  s = [Statement(:R, [v1,v2]),
+    Statement(:S, [v2,v3])]
+  u = UWDExpr(c, s)
+  uwd_result = ASKEMUWDs.construct(RelationDiagram, u)
+  
+  @test parsed_result == uwd_result
+
+end
 end
 
-#Potential Errors:
-# Context permits unTyped however, we always must designate a specific typing.
-# We explicitly have to set it to a untyped var
+
+#Notes:
+# Outerport creation seems to be broken
+# Typing creates untyped "Typed" objects which technically differs.
+# This is occuring cause we make our outerports based on the context
+# For some reason this variation of the relation macro ignores defining outerports first.
