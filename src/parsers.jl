@@ -21,7 +21,7 @@ export @relation_str
 export ws, eq, lparen, rparen, comma, EOL, colon, elname, obname
 
 # export the UWD rules
-export finjudgement, judgement, context, statement, uwd_head, body, uwd, line
+export finjudgement, judgement, context, statement, body, uwd, line
 
 # ## Create some rules 
 # These basic rules are for *lexing*, they define character classes that will help us
@@ -33,10 +33,10 @@ export finjudgement, judgement, context, statement, uwd_head, body, uwd, line
 @rule lparen = r"\("
 @rule rparen = r"\)"
 @rule comma = r","p
-@rule EOL = "\n" , r";"p
+@rule EOL = "\n" , r";"
 @rule colon = r":"p
-@rule elname = r"[^:{}→\n;=,\(\)]*"
-@rule obname = r"[^:{}→\n;=,\(\)]*"
+@rule elname = r"[^:{}→\n;=,\(\)\s]+"
+@rule obname = r"[^:{}→\n;=,\(\)\s]+"
 
 
 # Now we get to the syntax structures specific to our DSL.
@@ -44,7 +44,7 @@ export finjudgement, judgement, context, statement, uwd_head, body, uwd, line
 # It would be nice to have a better way to do this, but basically anything that can occur in a list has two rules associated with it.
 # We use the prefix `fin` for final.
 
-@rule judgement = elname & colon & obname & r"," |> Typed
+@rule judgement = elname & colon & obname & comma |> Typed
 @rule finjudgement = elname & colon & obname |> Typed
 
 # A context is a list of judgements between brackets. When a rule ends with `|> f`
@@ -52,10 +52,10 @@ export finjudgement, judgement, context, statement, uwd_head, body, uwd, line
 # We are using these functions to get more structured output as we pop the function call stack.
 # we don't want to end up with an `Array{Any}` that is deeply nested as the return value of our parse.
 
-@rule context = r"{"p & judgement[*] & finjudgement & r"}"p |> buildcontext
+@rule context = r"{"p & judgement[*] & finjudgement & ws & r"}"p |> buildcontext
 
-# Our statements  are of the form `R(a,b,c)`. A name(list of names).
-@rule statement = elname & lparen & arg[*] & finarg & rparen |> Statement
+# Our statements are of the form `R(a,b,c)`. A name(list of names).
+@rule statement = elname & lparen & ws & arg[*] & finarg & ws & rparen |> Statement
 @rule arg = elname & comma
 @rule finarg = elname
 
@@ -81,36 +81,36 @@ buildcontext(v::Vector{Any}) = begin
 end
 
 ASKEMUWDs.Statement(v::Vector{Any}) = begin
-  args = (Untyped∘Symbol∘first).(v[3])
-  push!(args, Untyped(Symbol(v[4])))
+  args = (Untyped∘Symbol∘first).(v[4])
+  push!(args, Untyped(Symbol(v[5])))
   Statement(Symbol(v[1]), args)
 end
 
 buildUWDExpr(v::Vector{Any}) = begin
-  #Extract Outerports from context:
+  # Extract Outerports from context:
   outer_ports = [first(v[5]), last(v[5])]
 
-  #Build a dictionary from our list for cheaper lookups O(n) for n judgements
+  # Build a dictionary from our list for cheaper lookups O(n) for n judgements
   context_dict = Dict(judgement.var => judgement for judgement in v[5])
 
   # Perform Type Checking for Statements O(m) for m statement args
   for s in v[1]
     for i in 1:length(s.variables)
       var = s.variables[i]
-      if !isnothing(context_dict[var.var])
+      if haskey(context_dict, var.var)
         s.variables[i] = context_dict[var.var]  # Overwrite the Untyped var with Typed
       end
     end
   end
 
   # Total Complexity: O(n) where m = n + constant intersections.
-  # O(m) + O(n) = O(n+ constant) + O(n) = O(n) + O(n) = O(n)
+  # O(m) + O(n) = O(n + constant) + O(n) = O(n) + O(n) = O(n)
 
-  #Construct Expression
+  # Construct Expression
   UWDExpr(outer_ports, v[1])
 end
 
-#String macro that parses and constructs UWD diagram from relationalProgram syntax.
+#  macro that parses and constructs UWD diagram from relationalProgram syntax.
 macro relation_str(x::String) begin
   uwd_exp = parse_whole(uwd, x) end
   return ASKEMUWDs.construct(RelationDiagram, parse_whole(uwd, x))
